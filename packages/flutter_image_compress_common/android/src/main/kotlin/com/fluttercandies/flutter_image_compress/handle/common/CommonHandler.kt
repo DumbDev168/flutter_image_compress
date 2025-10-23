@@ -60,8 +60,10 @@ class CommonHandler(override val type: Int) : FormatHandler {
     ): ByteArray {
         val options = BitmapFactory.Options()
         options.inJustDecodeBounds = false
-        options.inPreferredConfig = Bitmap.Config.RGB_565
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888  // Use 8888 for better memory alignment
         options.inSampleSize = inSampleSize
+        options.inMutable = true  // Allow bitmap reuse
+        options.inPremultiplied = false  // Avoid premultiplication for better memory handling
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) {
             @Suppress("DEPRECATION")
             options.inDither = true
