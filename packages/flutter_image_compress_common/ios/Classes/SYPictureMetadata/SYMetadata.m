@@ -11,7 +11,7 @@
 #import "NSDictionary+SY.h"
 
 #if !TARGET_OS_TV
-#import <AssetsLibrary/AssetsLibrary.h>
+#import <Photos/Photos.h>
 #endif
 
 #define SYKeyForMetadata(name)          NSStringFromSelector(@selector(metadata##name))
@@ -46,11 +46,11 @@
     return instance;
 }
 
-+ (instancetype)metadataWithAsset:(ALAsset *)asset
++ (instancetype)metadataWithAsset:(PHAsset *)asset
 {
 #if !TARGET_OS_TV
-    ALAssetRepresentation *representation = [asset defaultRepresentation];
-    return [self metadataWithDictionary:[representation metadata]];
+    NSData *imageData = [self imageDataWithPHAsset:asset];
+    return [self metadataWithImageData:imageData];
 #else
     return nil;
 #endif
@@ -149,27 +149,64 @@
 + (NSDictionary *)dictionaryWithAssetURL:(NSURL *)assetURL
 {
 #if !TARGET_OS_TV
-    __block ALAsset *assetAtUrl = nil;
-    ALAssetsLibrary* library = [[ALAssetsLibrary alloc] init];
-    
-    dispatch_semaphore_t sema = dispatch_semaphore_create(0);
-    [library assetForURL:assetURL resultBlock:^(ALAsset *asset) {
-        assetAtUrl = asset;
-        dispatch_semaphore_signal(sema);
-    } failureBlock:^(NSError *error) {
-        dispatch_semaphore_signal(sema);
-    }];
-    dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
-    
-    if (!assetAtUrl)
+    PHFetchResult<PHAsset *> *result = [PHAsset fetchAssetsWithALAssetURLs:@[assetURL] options:nil];
+    PHAsset *asset = result.firstObject;
+    if (!asset)
         return nil;
-    
-    ALAssetRepresentation *representation = [assetAtUrl defaultRepresentation];
-    return [representation metadata];
+
+    NSData *imageData = [self imageDataWithPHAsset:asset];
+    if (!imageData.length)
+        return nil;
+
+    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)imageData, NULL);
+    if (source == NULL)
+        return nil;
+
+    NSDictionary *options = @{(NSString *)kCGImageSourceShouldCache: @(NO)};
+    CFDictionaryRef properties = CGImageSourceCopyPropertiesAtIndex(source, 0, (__bridge CFDictionaryRef)options);
+    NSDictionary *dictionary = properties ? (__bridge_transfer NSDictionary *)properties : nil;
+    CFRelease(source);
+    return dictionary;
 #else
     return nil;
 #endif
 }
+
+#if !TARGET_OS_TV
++ (NSData *)imageDataWithPHAsset:(PHAsset *)asset
+{
+    if (!asset)
+        return nil;
+
+    __block NSData *imageData = nil;
+    dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+
+    PHImageRequestOptions *options = [[PHImageRequestOptions alloc] init];
+    options.networkAccessAllowed = YES;
+    options.synchronous = NO;
+
+    void (^resultHandler)(NSData *, NSString *, CGImagePropertyOrientation, NSDictionary *) = ^(NSData *data, NSString *dataUTI, CGImagePropertyOrientation orientation, NSDictionary *info) {
+        imageData = data;
+        dispatch_semaphore_signal(sema);
+    };
+
+    if (@available(iOS 13.0, *)) {
+        [[PHImageManager defaultManager] requestImageDataAndOrientationForAsset:asset options:options resultHandler:^(NSData *data, NSString *dataUTI, CGImagePropertyOrientation orientation, NSDictionary *info) {
+            resultHandler(data, dataUTI, orientation, info);
+        }];
+    } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        [[PHImageManager defaultManager] requestImageDataForAsset:asset options:options resultHandler:^(NSData *data, NSString *dataUTI, UIImageOrientation orientation, NSDictionary *info) {
+            resultHandler(data, dataUTI, (CGImagePropertyOrientation)orientation, info);
+        }];
+#pragma clang diagnostic pop
+    }
+
+    dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+    return imageData;
+}
+#endif
 
 #pragma mark - Mapping
 

@@ -29,7 +29,9 @@
 // http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/index.html
 // http://www.exiv2.org/tags.html
 
-@class ALAsset;
+#if !TARGET_OS_TV
+@class PHAsset;
+#endif
 
 @interface SYMetadata : SYMetadataBase
 
@@ -72,7 +74,9 @@
 @property (nonatomic, copy, readonly)   NSString  *profileName;
 
 + (instancetype)metadataWithDictionary:(NSDictionary *)dictionary;
-+ (instancetype)metadataWithAsset:(ALAsset *)asset __TVOS_PROHIBITED;
+#if !TARGET_OS_TV
++ (instancetype)metadataWithAsset:(PHAsset *)asset;
+#endif
 + (instancetype)metadataWithAssetURL:(NSURL *)assetURL __TVOS_PROHIBITED;
 + (instancetype)metadataWithFileURL:(NSURL *)fileURL;
 + (instancetype)metadataWithImageData:(NSData *)imageData;

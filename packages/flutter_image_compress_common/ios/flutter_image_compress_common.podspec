@@ -10,6 +10,7 @@ Compress image with native Objective-C with faster speed.
   s.author           = { 'fluttercandies' => 'email@example.com' }
   s.source           = { :path => '.' }
   s.ios.deployment_target = '9.0'
+  s.ios.frameworks = 'Photos'
 
   s.source_files = 'Classes/**/*'
   s.public_header_files = 'Classes/**/*.h'
